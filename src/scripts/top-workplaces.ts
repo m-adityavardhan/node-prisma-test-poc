@@ -1,57 +1,33 @@
 import axios, { AxiosResponse } from 'axios';
 import { Workplace, Shift, Worker } from '@prisma/client'; 
-import { WorkPlacesReponse } from 'src/models/workPlacesResponse';
-import { ShiftsResponse } from 'src/models/shiftsResponse';
-import { WorkersResponse } from 'src/models/workersReponse';
 import { FinalResponse } from 'src/models/finalResponse';
+import { APIResponse } from 'src/models/apiResponse';
 
 const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
 
-async function getWorkplaces(): Promise<Workplace[]>{
-    let workPlaces:Workplace[] = [];
-    let nextUrl: string | undefined = `${baseUrl}/workplaces`;
+/**
+ * Generic function to fetch data from API
+ * @param endpoint 
+ * @returns An array of API response data
+ */
+async function getAPIResponse<T>(endpoint:string): Promise<T[]> {
+    let objects:T[] = [];
+    let nextUrl: string | undefined = `${baseUrl}/${endpoint}`;
   
     while (nextUrl) {
-      const response:AxiosResponse<WorkPlacesReponse> = await axios.get<WorkPlacesReponse>(nextUrl);
+      const response:AxiosResponse<APIResponse<T>> = await axios.get<APIResponse<T>>(nextUrl);
       const data = response.data;
-      workPlaces = workPlaces.concat(data.data);
+      objects = objects.concat(data.data);
       nextUrl = data.links.next;
     }
-    return workPlaces;
+    return objects;
 }
-
-async function getShifts(): Promise<Shift[]> {
-    let shifts:Shift[] = [];
-    let nextUrl: string | undefined = `${baseUrl}/shifts`;
-  
-    while (nextUrl) {
-      const response:AxiosResponse<ShiftsResponse> = await axios.get<ShiftsResponse>(nextUrl);
-      const data = response.data;
-      shifts = shifts.concat(data.data);
-      nextUrl = data.links.next;
-    }
-    return shifts;
-}
-
-async function getWorkers(): Promise<Worker[]> {
-    let workers:Worker[] = [];
-    let nextUrl: string | undefined = `${baseUrl}/workers`;
-  
-    while (nextUrl) {
-      const response:AxiosResponse<WorkersResponse> = await axios.get<WorkersResponse>(nextUrl);
-      const data = response.data;
-      workers = workers.concat(data.data);
-      nextUrl = data.links.next;
-    }
-    return workers;
-}
-
 /**
  * Determines if shift is valid and completed
  * @param shift 
  * @param activeWorkerIds 
  * @param activeWorkplacesIds 
- * @returns 
+ * @returns A boolean value indicating whether the shift is completed
  */
 function isCompletedShift(shift: Shift, activeWorkerIds: Set<number>,activeWorkplacesIds: Set<number>): boolean {
     return (
@@ -64,29 +40,28 @@ function isCompletedShift(shift: Shift, activeWorkerIds: Set<number>,activeWorkp
 
 /**
  * Calculated the top 3 active workplaces based on completed shifts count
- * @returns 
+ * @returns An array with sorted workplaces based on shifts
  */
 async function getTopWorkplaces(): Promise<FinalResponse[]>{
     try {
-        const workplaces = await getWorkplaces();
+        const workplaces = await getAPIResponse<Workplace>('workplaces');
         const activeWorkplaces = workplaces.filter((workplace:Workplace) => workplace.status == 0);
         const activeWorkplacesIds = new Set<number>(activeWorkplaces.map((workplace:Workplace) => workplace.id));
 
-        const shifts = await getShifts();
+        const shifts = await getAPIResponse<Shift>('shifts');
 
-        const workers = await getWorkers();
+        const workers = await getAPIResponse<Worker>('workers');
         const activeWorkers = workers.filter((worker:Worker) => worker.status === 0);
         const activeWorkerIds = new Set<number>(activeWorkers.map((worker:Worker) => worker.id));
 
-        const completedShifts = shifts.filter((shift:Shift) =>
+        const completedShifts:Shift[] = shifts.filter((shift:Shift) =>
         isCompletedShift(shift, activeWorkerIds,activeWorkplacesIds)
         );
 
         const workplaceShiftCount: Record<number, number> = {};
-        for (const shift of completedShifts) {
-        workplaceShiftCount[shift.workplaceId] =
-            (workplaceShiftCount[shift.workplaceId] || 0) + 1;
-        }
+        completedShifts.forEach((shift:Shift) => {
+            workplaceShiftCount[shift.workplaceId] = (workplaceShiftCount[shift.workplaceId] || 0) + 1;
+        })
 
         const workplacesNameWithCount:FinalResponse[] = activeWorkplaces.map((workplace:Workplace) => ({
         name : workplace.name,
