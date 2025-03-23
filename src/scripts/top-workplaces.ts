@@ -80,7 +80,7 @@ async function getTopWorkplaces(): Promise<FinalResponse[]>{
 (async () => {
     try {
       let topWorkplaces = await getTopWorkplaces();
-      console.log('Top 3 Active Workplaces by Completed Shifts:', topWorkplaces);
+      console.log(topWorkplaces);
     } catch (error) {
       console.error('An error occurred while retrieving top workplaces:', error);
     }
