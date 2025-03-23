@@ -51,6 +51,7 @@ export class ShiftsController {
     @Req() request: Request,
     @PaginationPage() page: Page,
   ): Promise<PaginatedResponse<ShiftDTO>> {
+    console.log('page',page)
     const { data, nextPage } = await this.service.get({ page });
 
     return {
